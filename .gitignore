@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# 密钥与环境
+.env
+
+# 日志
+*.log
+
+# 运行产物
+*.log
+instance/
+.playwright-cli/

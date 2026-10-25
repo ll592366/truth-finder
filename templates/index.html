@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>全息元宝侦探</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<style>
+:root{
+  --bg0:#060612;--bg1:#0a0e24;--bg2:#0f1438;
+  --a1:#7c3aed;--a2:#3b82f6;--a3:#00e5ff;
+  --text:#e2e8f0;--dim:#8899b4;--muted:#4a5578;
+  --glass:rgba(8,12,32,.85);--glass2:rgba(12,18,48,.7);
+  --bdr:rgba(124,58,237,.22);--bdr2:rgba(59,130,246,.16);
+  --green:#22c55e;--red:#ef4444;--amber:#f59e0b;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--colw:520px}
+@media(min-width:768px){:root{--colw:720px}}
+@media(min-width:1200px){:root{--colw:920px}}
+body{font-family:'Segoe UI',-apple-system,system-ui,sans-serif;background:linear-gradient(135deg,var(--bg0),var(--bg1),var(--bg2));color:var(--text);min-height:100vh;min-height:100dvh;overflow-x:hidden;-webkit-tap-highlight-color:transparent;display:flex;flex-direction:column}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 80% 55% at 50% 30%,rgba(124,58,237,.1),transparent 60%);z-index:0;pointer-events:none}
+canvas#holo{position:fixed;inset:0;z-index:1;pointer-events:none}
+#spider{position:fixed;inset:0;z-index:5;pointer-events:none}
+#spider.active{display:block!important}
+.layout{position:relative;z-index:2;display:flex;flex-direction:column;height:100vh;height:100dvh}
+
+.nav{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--glass);backdrop-filter:blur(18px);border-bottom:1px solid var(--bdr);flex-shrink:0;z-index:10}
+.nav-l{display:flex;align-items:center;gap:8px}
+.nav-i{width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,var(--a1),var(--a2));display:flex;align-items:center;justify-content:center;font-size:13px;box-shadow:0 0 12px rgba(124,58,237,.35)}
+.nav-t{font-weight:700;font-size:.9em;letter-spacing:1px;background:linear-gradient(90deg,var(--a3),#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.nav-b{font-size:.6em;color:var(--dim);background:rgba(124,58,237,.18);padding:2px 9px;border-radius:20px;border:1px solid var(--bdr);letter-spacing:1px}
+/* 查询中状态徽章：呼吸光 + 打点动画 */
+.nav-b.busy{color:#c7f0ff;background:rgba(0,229,255,.14);border-color:rgba(0,229,255,.45);text-shadow:0 0 8px rgba(0,229,255,.5);animation:navBusyPulse 1.6s ease-in-out infinite}
+@keyframes navBusyPulse{0%,100%{box-shadow:0 0 4px rgba(0,229,255,.25)}50%{box-shadow:0 0 14px rgba(0,229,255,.6)}}
+.nav-b .dots::after{content:'';animation:navDots 1.2s steps(4,end) infinite}
+.nav-t .dots::after{content:'';animation:navDots 1.2s steps(4,end) infinite;color:var(--a3);-webkit-text-fill-color:var(--a3);font-weight:800;text-shadow:0 0 8px rgba(0,229,255,.5)}
+@keyframes navDots{0%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}}
+
+.screen{flex:1;overflow-y:auto;padding:18px 16px;position:relative}
+.screen-inner{max-width:var(--colw);margin:0 auto}
+.screen-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--muted);text-align:center;min-height:200px}
+.screen-empty .big{font-size:2.6em;margin-bottom:12px;opacity:.5}
+@keyframes shine{0%{background-position:300% center}100%{background-position:-300% center}}
+.screen-empty .txt{font-size:.85em;letter-spacing:2px;position:relative;display:inline-block;font-weight:700;background:linear-gradient(90deg,var(--a3),#a78bfa,var(--a2),#34d399,var(--a3));background-size:300% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:shine 3s linear infinite}
+
+.panel{background:rgba(8,14,36,.6);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(0,229,255,.18);border-radius:14px;padding:18px;position:relative;overflow:hidden;animation:rise .5s ease}
+.panel::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,229,255,.012) 2px,rgba(0,229,255,.012) 4px);pointer-events:none}
+.panel::after{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--a3),transparent);animation:scan 4s linear infinite;opacity:.5}
+@keyframes scan{0%{top:0}100%{top:100%}}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.panel-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid rgba(0,229,255,.12)}
+.panel-title{font-size:.95em;font-weight:800;letter-spacing:1.5px;color:var(--a3);text-shadow:0 0 8px rgba(0,229,255,.5)}
+.panel-time{font-size:.65em;color:var(--muted)}
+
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.field{background:rgba(0,229,255,.03);border:1px solid rgba(0,229,255,.1);border-radius:9px;padding:11px 12px;position:relative}
+.field::before{content:'';position:absolute;top:0;left:0;width:100%;height:1px;background:linear-gradient(90deg,transparent,var(--a3),transparent);opacity:.3}
+.fn{font-size:.58em;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px}
+.fv{font-size:.88em;font-weight:700;color:var(--text);line-height:1.4;word-break:break-all}
+.fv .hl{color:var(--a3)}.fv .warn{color:var(--amber)}.fv .ok{color:var(--green)}
+.conf-wrap{height:5px;background:rgba(255,255,255,.06);border-radius:3px;margin-top:6px;overflow:hidden}
+.conf-bar{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--a1),var(--a2));box-shadow:0 0 8px rgba(124,58,237,.4);transition:width 1.2s ease;width:0}
+
+.verdict{background:rgba(0,229,255,.04);border:1px solid rgba(0,229,255,.12);border-radius:9px;padding:12px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px}
+.vb{font-size:1.3em;font-weight:900;padding:3px 14px;border-radius:7px}
+.vb-t{background:rgba(34,197,94,.1);color:var(--green);border:1px solid rgba(34,197,94,.3)}
+.vb-f{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.3)}
+.vb-u{background:rgba(245,158,11,.1);color:var(--amber);border:1px solid rgba(245,158,11,.3)}
+.vr{flex:1;font-size:.8em;color:var(--dim);line-height:1.5}
+
+.ev h4{font-size:.72em;color:var(--a3);letter-spacing:1.5px;margin-bottom:8px;text-transform:uppercase}
+.ev-item{background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.05);border-radius:8px;padding:9px;margin-bottom:7px;transition:border .2s}
+.ev-item:hover{border-color:rgba(0,229,255,.18)}
+.ev-link{color:var(--a3);font-size:.8em;font-weight:600;text-decoration:none;display:block;margin-bottom:3px;word-break:break-all}
+.ev-link:hover{text-decoration:underline}
+.ev-desc{font-size:.72em;color:var(--dim);line-height:1.5;margin-bottom:4px}
+.ev-meta{display:flex;gap:6px;font-size:.64em;color:var(--muted);flex-wrap:wrap}
+.ev-meta span{background:rgba(0,0,0,.4);padding:2px 6px;border-radius:3px}
+
+.dock{flex-shrink:0;background:var(--glass);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid var(--bdr);padding:12px 16px;padding-bottom:calc(12px + env(safe-area-inset-bottom));z-index:10}
+.dock-inner{max-width:var(--colw);margin:0 auto;display:flex;align-items:center;gap:12px}
+.orb-mini{width:56px;height:56px;position:relative;flex-shrink:0}
+.orb-mini canvas{position:absolute;inset:-16px}
+.orb-mini .core{position:absolute;inset:14px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#1a2a55,#060612);box-shadow:0 0 20px rgba(0,229,255,.25)}
+.orb-mini .ring{position:absolute;inset:10px;border-radius:50%;border:1.5px solid var(--a3);box-shadow:0 0 14px rgba(0,229,255,.4);animation:spin 5s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.dock-input{flex:1;position:relative}
+.dock-input textarea{width:100%;height:42px;background:var(--glass2);border:1px solid rgba(255,255,255,.06);border-radius:21px;color:var(--text);font-size:14px;padding:11px 16px;resize:none;outline:none;transition:border .3s,box-shadow .3s;font-family:inherit;line-height:1.3}
+.dock-input textarea:focus{border-color:var(--a1);box-shadow:0 0 16px rgba(124,58,237,.18)}
+.dock-input textarea::placeholder{color:var(--muted)}
+.dock-mic{width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--a1),var(--a2));border:none;color:#fff;font-size:21px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 0 16px rgba(124,58,237,.35);flex-shrink:0;transition:all .3s;touch-action:none;-webkit-tap-highlight-color:transparent;user-select:none}
+.dock-mic.recording{background:var(--red);box-shadow:0 0 24px rgba(239,68,68,.55);animation:mp .7s infinite}
+@keyframes mp{0%,100%{box-shadow:0 0 10px var(--red)}50%{box-shadow:0 0 30px var(--red),0 0 54px rgba(239,68,68,.3)}}
+.dock-send{width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,var(--a1),var(--a2));border:none;color:#fff;font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 0 16px rgba(124,58,237,.35);flex-shrink:0;transition:all .3s}
+.dock-send:active{transform:scale(.94)}
+.dock-actions{display:flex;gap:8px;margin-top:10px}
+.btn-sm{padding:7px 14px;border:1px solid var(--bdr);border-radius:16px;font-size:.72em;cursor:pointer;color:var(--dim);background:transparent;letter-spacing:.5px;font-family:inherit;transition:all .25s}
+.btn-sm.active{color:var(--a3);border-color:rgba(0,229,255,.4);background:rgba(0,229,255,.06)}
+
+/* ====== 预设问题卡片条（输入框上方，横向滚动） ====== */
+.qs{max-width:var(--colw);margin:0 auto 10px;display:flex;gap:8px;overflow-x:auto;padding:2px 4px 4px;scrollbar-width:none;-ms-overflow-style:none}
+.qs::-webkit-scrollbar{display:none}
+.qs-label{flex-shrink:0;display:inline-flex;align-items:center;padding:7px 4px 7px 0;font-size:.68em;color:var(--muted);letter-spacing:1px;white-space:nowrap}
+.q-card{flex-shrink:0;display:inline-flex;align-items:center;gap:5px;padding:7px 13px;border-radius:16px;background:var(--glass2);border:1px solid var(--bdr2);color:var(--dim);font-size:.72em;cursor:pointer;white-space:nowrap;transition:all .25s;font-family:inherit;letter-spacing:.3px;user-select:none}
+.q-card:hover{color:var(--a3);border-color:rgba(0,229,255,.35);background:rgba(0,229,255,.06);box-shadow:0 0 12px rgba(0,229,255,.12)}
+.q-card:active{transform:scale(.94)}
+.q-card .qi{font-size:.95em;opacity:.75}
+.q-card.picked{color:var(--a3);border-color:rgba(0,229,255,.4);background:rgba(0,229,255,.08)}
+
+@media(min-width:768px){.screen{padding:22px 20px}.dock{padding:14px 20px}.nav{padding-left:calc(50% - var(--colw)/2);padding-right:calc(50% - var(--colw)/2)}.frow{font-size:12.5px}}
+
+/* ====== 猎场统计条（动态数字：爬取数/关键词数/交叉轮次/一致性） ====== */
+#huntBar{flex-shrink:0;display:flex;flex-direction:column;gap:5px;padding:8px 16px 10px;background:var(--glass);backdrop-filter:blur(14px);border-bottom:1px solid var(--bdr);position:relative;z-index:11}
+.hb-stats{display:flex;gap:8px;width:100%;max-width:var(--colw);margin:0 auto}
+.hb-stat{flex:1;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07);border-radius:9px;padding:5px 4px 4px;text-align:center;position:relative;overflow:hidden;transition:all .3s}
+.hb-stat::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,229,255,.35),transparent)}
+.hb-stat .n{display:block;font-size:1.05em;font-weight:800;color:var(--a3);text-shadow:0 0 10px rgba(0,229,255,.45);font-family:ui-monospace,Consolas,monospace;transition:transform .18s ease}
+.hb-stat .n.bump{animation:hbBump .45s ease}
+@keyframes hbBump{0%{transform:scale(1)}35%{transform:scale(1.45);color:#fff}100%{transform:scale(1)}}
+.hb-stat .l{display:block;font-size:.55em;color:var(--muted);letter-spacing:1px;margin-top:1px}
+.hb-stat.lit{background:rgba(0,229,255,.07);border-color:rgba(0,229,255,.25)}
+.hb-kwflow{display:flex;gap:5px;overflow:hidden;height:20px;align-items:center;width:100%;max-width:var(--colw);margin:0 auto}
+.hb-kw{flex-shrink:0;font-size:.6em;padding:2px 8px;border-radius:10px;background:rgba(0,229,255,.09);border:1px solid rgba(0,229,255,.22);color:var(--a3);white-space:nowrap;animation:kwIn .4s ease}
+@keyframes kwIn{from{opacity:0;transform:translateY(8px) scale(.8)}to{opacity:1;transform:none}}
+.hb-kwflow .kw-hint{font-size:.58em;color:var(--muted);flex-shrink:0;letter-spacing:1px}
+
+/* ====== 飞行关键字（从节点飞入统计条） ====== */
+.fly-kw{position:fixed;z-index:80;pointer-events:none;font-size:.68em;font-weight:700;color:var(--a3);text-shadow:0 0 8px rgba(0,229,255,.6);white-space:nowrap;transition:top .75s cubic-bezier(.3,-.02,.25,1),left .75s cubic-bezier(.3,-.02,.25,1),font-size .75s ease,opacity .2s;letter-spacing:.5px}
+
+/* ====== 情报报告侧边栏（爬完自动滑出，可收回/再展开） ====== */
+/* 电脑端：右侧抽屉；手机端：底部抽屉（不盖输入区） */
+.sbr{position:fixed;top:0;right:0;bottom:0;width:min(420px,94vw);z-index:70;background:rgba(6,10,26,.97);backdrop-filter:blur(18px);border-left:1px solid rgba(0,229,255,.2);box-shadow:-18px 0 50px rgba(0,0,0,.5);transform:translateX(105%);transition:transform .45s cubic-bezier(.22,.9,.3,1);display:flex;flex-direction:column}
+@media(max-width:640px){
+  .sbr{top:auto;left:0;right:0;width:100%;height:72vh;border-left:none;border-top:1px solid rgba(0,229,255,.25);border-radius:18px 18px 0 0;transform:translateY(105%);box-shadow:0 -18px 50px rgba(0,0,0,.5)}
+  .sbr.open{transform:translateY(0)}
+}
+.sbr.open{transform:translateX(0)}
+.sbr-h{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid rgba(0,229,255,.15);flex-shrink:0}
+.sbr-h .t{font-size:.9em;font-weight:800;letter-spacing:1.5px;color:var(--a3);text-shadow:0 0 8px rgba(0,229,255,.5)}
+.sbr-x{width:30px;height:30px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:var(--dim);font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .25s;font-family:inherit}
+.sbr-x:hover{color:var(--red);border-color:rgba(239,68,68,.35)}
+.sbr-b{flex:1;overflow-y:auto;padding:14px 16px;scrollbar-width:thin}
+.sbr-tab{position:fixed;right:0;top:50%;transform:translateY(-50%);z-index:69;background:linear-gradient(135deg,var(--a1),var(--a2));color:#fff;border:none;border-radius:12px 0 0 12px;padding:14px 8px;font-size:.72em;font-weight:700;letter-spacing:2px;cursor:pointer;writing-mode:vertical-rl;box-shadow:-6px 0 18px rgba(124,58,237,.4);display:none;font-family:inherit;animation:tabIn .4s ease}
+.sbr-tab.show{display:block}
+@keyframes tabIn{from{opacity:0;transform:translateY(-50%) translateX(8px)}to{opacity:1;transform:translateY(-50%) translateX(0)}}
+@media(max-width:640px){.sbr-tab{top:auto;bottom:96px;right:10px;transform:none;writing-mode:vertical-rl;animation:none}}
+.sbr .panel{animation:none}
+
+/* ====== 数码蜘蛛爬行可视化（搜索过程 = 真实来源爬取） ====== */
+#spider-layer{position:fixed;inset:0;z-index:60;pointer-events:none;opacity:0;visibility:hidden;transition:opacity .35s ease,visibility .35s}
+#spider-layer.on{opacity:1;visibility:visible}
+#spider-layer .sp-wrap{position:absolute;inset:0;overflow:hidden}
+/* ====== 全屏滚动信息流（思考期就开始滚，蜘蛛在里面爬） ====== */
+#spider-layer .feed-head{position:absolute;top:calc(64px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);font-family:ui-monospace,Consolas,monospace;font-size:10px;letter-spacing:2px;color:var(--muted);white-space:nowrap;z-index:3;transition:left .45s cubic-bezier(.22,.9,.3,1)}
+#spider-layer .feed-head b{color:var(--a3);font-weight:700;text-shadow:0 0 8px rgba(0,229,255,.5)}
+#feedRows{position:absolute;top:0;left:0;right:0;bottom:0;overflow:hidden;transition:right .45s cubic-bezier(.22,.9,.3,1)}
+#spiderCvs{position:absolute;inset:0;width:100%;height:100%;display:block;transition:right .45s cubic-bezier(.22,.9,.3,1)}
+/* 报告侧栏打开时（桌面端）：信息流/画布/顶部计数在「剩余可视区」居中，右侧给 420px 抽屉 */
+@media(min-width:641px){
+  body.sbr-open #feedRows,
+  body.sbr-open #spiderCvs{right:420px}
+  body.sbr-open #spider-layer .feed-head{left:calc((100vw - 420px)/2)}
+}
+.frow{position:absolute;left:50%;transform:translateX(-50%);max-width:min(92vw,var(--colw));width:max-content;font-family:ui-monospace,Consolas,monospace;font-size:11.5px;line-height:1.4;color:#7e93b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:2px 12px;border-radius:6px;transition:background .35s,color .35s,text-shadow .35s,opacity .4s;opacity:0;will-change:top,opacity}
+.frow.in{animation:frowIn .45s ease forwards}
+@keyframes frowIn{from{opacity:0}to{opacity:.85}}
+.frow .fs{color:#4a5a80;margin-right:7px}
+.frow .kw{color:#9fb6d8;padding:1px 3px;border-radius:3px;transition:all .3s}
+.frow.lit{background:rgba(0,229,255,.09);color:#c7f0ff;text-shadow:0 0 8px rgba(0,229,255,.35);opacity:1}
+.frow.lit .kw{color:#e8fbff;background:rgba(0,229,255,.22);font-weight:700;text-shadow:0 0 10px rgba(0,229,255,.8)}
+.frow.scan{color:#56688f;font-style:italic}
+.frow.scan::before{content:'▸ ';color:#3b4a6b}
+@media(max-width:600px){.frow{font-size:10px}}
+</style>
+</head>
+<body>
+<canvas id="holo"></canvas>
+
+<div id="spider-layer">
+  <div class="sp-wrap">
+    <canvas id="spiderCvs"></canvas>
+    <div class="feed-head">📡 INFO FEED · <b id="feedCount">0</b>/<span id="feedTotal">8</span> 已归档</div>
+    <div id="feedRows"></div>
+  </div>
+</div>
+
+<div class="sbr" id="sbr">
+  <div class="sbr-h"><span class="t">📡 元宝验证报告</span><button class="sbr-x" onclick="toggleSbr(false)">✕</button></div>
+  <div class="sbr-b" id="sbrBody"></div>
+</div>
+<button class="sbr-tab" id="sbrTab" onclick="toggleSbr(true)">📡 查看情报</button>
+
+<div class="layout">
+  <nav class="nav"><div class="nav-l"><div class="nav-i">🔮</div><span class="nav-t" id="navTitle">全息元宝侦探</span></div><span class="nav-b" id="navState">元宝搜索</span></nav>
+
+  <div id="huntBar" style="display:none">
+    <div class="hb-stats">
+      <div class="hb-stat" id="hbstCrawled"><span class="n" id="hbCount">0</span><span class="l">已爬取</span></div>
+      <div class="hb-stat"><span class="n" id="hbKw">0</span><span class="l">关键词</span></div>
+      <div class="hb-stat"><span class="n" id="hbRounds">1</span><span class="l">交叉轮次</span></div>
+      <div class="hb-stat"><span class="n" id="hbCons">—</span><span class="l">交叉一致性</span></div>
+    </div>
+    <div class="hb-kwflow" id="hbKwFlow"></div>
+  </div>
+
+  <div class="screen" id="screen">
+    <div class="screen-inner">
+      <div class="screen-empty" id="empty">
+        <div class="big">🛰</div>
+        <div class="txt">全息侦探待命中 · 输入传言开始查证</div>
+      </div>
+      <div id="result"></div>
+    </div>
+  </div>
+
+  <div class="dock">
+    <div class="qs" id="qs">
+      <span class="qs-label">💡 试试问：</span>
+    </div>
+    <div class="dock-inner">
+      <div class="orb-mini" id="orbMini"><div class="ring"></div><div class="core"></div><canvas width="88" height="88" id="miniCvs"></canvas></div>
+      <div class="dock-input"><textarea id="query" placeholder="输入要查证的传言..." rows="1"></textarea></div>
+      <button class="dock-mic" id="micBtn" title="按住说话">🎤</button>
+      <button class="dock-send" id="sendBtn" title="发送">➤</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ====== 深空宇宙背景：星座节点 + 黑洞吞噬 ======
+var state='idle', mode='deep';  // 全局状态（必须用 var，先于 draw 可用）
+const canvas=document.getElementById('holo'),ctx=canvas.getContext('2d');
+let W,H,stars=[],sp=1,frame=0;
+const dpr=Math.min(window.devicePixelRatio||1,2);
+function resize(){W=canvas.width=window.innerWidth*dpr;H=canvas.height=window.innerHeight*dpr;canvas.style.width=window.innerWidth+'px';canvas.style.height=window.innerHeight+'px';ctx.setTransform(dpr,0,0,dpr,0,0);W=window.innerWidth;H=window.innerHeight}
+window.addEventListener('resize',resize);resize();
+
+// 星座星点（散布全屏）
+const COLORS=[[34,211,238],[168,85,247],[16,185,129]];
+for(let i=0;i<170;i++){
+  stars.push({
+    x:Math.random()*W,y:Math.random()*H,
+    vx:(Math.random()-.5)*.5,vy:(Math.random()-.5)*.5,
+    r:Math.random()*1.8+.6,
+    c:COLORS[Math.floor(Math.random()*COLORS.length)],
+    tw:Math.random()*Math.PI*2,ts:.015+Math.random()*.03,
+    dying:false,dp:0,dead:false,rt:0
+  });
+}
+
+// 黑洞配置（柔和光团，无硬边缘）
+// 黑洞尺寸自适应：以屏幕短边为基准（手机 0.8 倍 / 电脑 1 倍），窗口变化时重算
+let BHU=Math.max(.55,Math.min(window.innerWidth,window.innerHeight)/900);
+const bh={x:0,y:0,mass:1600,eh:24*BHU,inf:160*BHU,rot:0,rotSpeed:.007,phase:0};
+window.addEventListener('resize',()=>{const u=Math.max(.55,Math.min(window.innerWidth,window.innerHeight)/900);bh.eh=24*u;bh.inf=160*u});
+
+function respawn(){
+  for(let i=0;i<12;i++){const x=Math.random()*W,y=Math.random()*H;if(Math.hypot(x-bh.x,y-bh.y)>bh.inf*.5)return{x,y}}
+  return{x:Math.random()*W*.4,y:Math.random()*H*.4}
+}
+
+function drawBH(){
+  const bx=bh.x,by=bh.y,eh=bh.eh,inf=bh.inf;
+  const dynRot=typeof state!=='undefined'&&state==='thinking'?.028:typeof state!=='undefined'&&state==='speaking'?.012:.007;
+  bh.rot+=dynRot;bh.phase+=.03;
+  const speakBreath=typeof state!=='undefined'&&state==='speaking'?Math.sin(frame*.12)*.45:0;
+  const pulse=1+Math.sin(bh.phase)*.05+speakBreath;
+  // 1. 外层引力场（极淡紫晕）
+  let g=ctx.createRadialGradient(bx,by,eh*2,bx,by,inf*1.1);
+  g.addColorStop(0,'rgba(120,80,180,.04)');g.addColorStop(.5,'rgba(80,40,140,.02)');g.addColorStop(1,'rgba(60,20,120,0)');
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(bx,by,inf*1.1,0,Math.PI*2);ctx.fill();
+  // 2. 柔和辉光（无硬边，多层径向渐变）
+  const glowR=eh*4.5*pulse;
+  g=ctx.createRadialGradient(bx,by,eh*.8,bx,by,glowR);
+  g.addColorStop(0,'rgba(40,16,80,.8)');g.addColorStop(.3,'rgba(70,26,110,.4)');g.addColorStop(.6,'rgba(100,40,150,.12)');g.addColorStop(1,'rgba(126,58,175,0)');
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(bx,by,glowR,0,Math.PI*2);ctx.fill();
+  // 3. 吸积盘轨道（压扁椭圆 + 流动弧光）
+  ctx.save();ctx.translate(bx,by);ctx.rotate(-.45);ctx.scale(1,.4);
+  for(let ring=0;ring<5;ring++){
+    const rr=eh*(2.2+ring*1.1),ba=Math.max(.05,.3-ring*.045);
+    const col=ring%2?'168,85,247':'99,102,241';
+    ctx.beginPath();ctx.arc(0,0,rr,0,Math.PI*2);ctx.strokeStyle=`rgba(${col},${ba})`;ctx.lineWidth=2-ring*.22;ctx.stroke();
+    const as=(bh.rot*(1+ring*.5)+ring*1.2)%(Math.PI*2),al=1.0;
+    const g2=ctx.createLinearGradient(Math.cos(as)*rr,Math.sin(as)*rr,Math.cos(as+al)*rr,Math.sin(as+al)*rr);
+    g2.addColorStop(0,'rgba(196,181,253,0)');g2.addColorStop(.5,`rgba(196,181,253,${ba*1.7})`);g2.addColorStop(1,'rgba(196,181,253,0)');
+    ctx.beginPath();ctx.arc(0,0,rr,as,as+al);ctx.strokeStyle=g2;ctx.lineWidth=2.3-ring*.22;ctx.stroke();
+  }
+  ctx.restore();
+  // 4. 事件视界（纯黑核心，边缘柔化）
+  g=ctx.createRadialGradient(bx,by,0,bx,by,eh);
+  g.addColorStop(0,'#000');g.addColorStop(.7,'#050510');g.addColorStop(1,'rgba(10,10,30,0)');
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(bx,by,eh,0,Math.PI*2);ctx.fill();
+  // 5. 光子球（极淡，非硬边）
+  ctx.beginPath();ctx.arc(bx,by,eh+1.5,0,Math.PI*2);ctx.strokeStyle='rgba(196,181,253,.35)';ctx.lineWidth=1;ctx.stroke();
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  frame++;
+  // 黑洞在屏幕上方区域缓慢游走（李萨如轨迹）
+  bh.x=W*(.5+.18*Math.sin(frame*.0009));
+  bh.y=H*(.38+.16*Math.cos(frame*.0011+1.3));
+  const bx=bh.x,by=bh.y,eh=bh.eh,inf=bh.inf;
+  const dynMass=typeof state!=='undefined'&&state==='thinking'?3200:typeof state!=='undefined'&&state==='speaking'?2000:1600;
+  // 更新星点
+  for(let i=0;i<stars.length;i++){
+    const p=stars[i];
+    if(p.dead){p.rt--;if(p.rt<=0){const q=respawn();p.x=q.x;p.y=q.y;p.vx=(Math.random()-.5)*.5;p.vy=(Math.random()-.5)*.5;p.dead=false;p.dp=0;p.r=Math.random()*1.8+.6}else continue}
+    const dx=bx-p.x,dy=by-p.y,d=Math.hypot(dx,dy);
+    if(d>0&&d<inf){const f=Math.min(dynMass/(d*d+100),1.3);p.vx+=dx/d*f;p.vy+=dy/d*f}
+    p.x+=p.vx;p.y+=p.vy;p.vx*=.982;p.vy*=.982;
+    if(Math.abs(p.vx)<.04)p.vx+=(Math.random()-.5)*.08;if(Math.abs(p.vy)<.04)p.vy+=(Math.random()-.5)*.08;
+    if(d<eh*1.2){p.dying=true;p.dp+=.05}
+    if(p.dying){
+      p.dp+=.05;const dp=p.dp;
+      if(dp>=1){p.dead=true;p.dying=false;p.rt=3+Math.floor(Math.random()*8);continue}
+      p.r=Math.max(.2,p.r*.9);
+      const sa=Math.atan2(p.y-by,p.x-bx)+.22,sd=d*(1-dp*.65);
+      p.x=bx+Math.cos(sa)*sd;p.y=by+Math.sin(sa)*sd;
+      ctx.globalAlpha=(1-dp)*.7;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fillStyle=`rgb(${p.c[0]},${p.c[1]},${p.c[2]})`;ctx.fill();ctx.globalAlpha=1;continue;
+    }
+    p.tw+=p.ts;
+    const a=.78+.22*Math.sin(p.tw);
+    ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fillStyle=`rgba(${p.c[0]},${p.c[1]},${p.c[2]},${a})`;ctx.fill();
+    // 靠近黑洞拉出拖尾
+    if(d<inf*.55&&d>eh*2){const tl=Math.min(16,(inf*.55-d)*.11),ang=Math.atan2(by-p.y,bx-p.x);ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x-Math.cos(ang)*tl,p.y-Math.sin(ang)*tl);ctx.strokeStyle=`rgba(${p.c[0]},${p.c[1]},${p.c[2]},${a*.4})`;ctx.lineWidth=p.r*.8;ctx.lineCap='round';ctx.stroke();ctx.lineCap='butt'}
+  }
+  // 星座连线
+  for(let i=0;i<stars.length;i++){const a=stars[i];if(a.dying||a.dead)continue;for(let j=i+1;j<stars.length;j++){const b=stars[j];if(b.dying||b.dead)continue;const d=Math.hypot(a.x-b.x,a.y-b.y);if(d<110){const la=(1-d/110)*.38;ctx.strokeStyle=`rgba(${a.c[0]},${a.c[1]},${a.c[2]},${la})`;ctx.lineWidth=.6;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke()}}}
+  // 渲染黑洞（最上层）
+  drawBH();
+  requestAnimationFrame(draw);
+}draw();
+
+const mc2=document.getElementById('miniCvs'),mcx=mc2.getContext('2d');
+let miniParts=[],mnt=0;
+for(let i=0;i<26;i++)miniParts.push({t:Math.random()*Math.PI*2,p:Math.acos(2*Math.random()-1),o:.4+Math.random()*.5});
+function drawMini(){
+  mcx.clearRect(0,0,88,88);
+  const c={x:44,y:44};mnt+=.05*sp;
+  const pts=[];miniParts.forEach(p=>{const t=p.t+mnt*1.5+Math.sin(mnt+p.p)*.3,ph=p.p+Math.cos(mnt+p.t)*.2,rr=22*(.6+.4*Math.sin(p.p*3));const x=c.x+rr*Math.sin(ph)*Math.cos(t),y=c.y+rr*Math.cos(ph);pts.push({x,y});});
+  for(let i=0;i<pts.length;i++)for(let j=i+1;j<pts.length;j++){const a=pts[i],b=pts[j],d=Math.hypot(a.x-b.x,a.y-b.y);if(d<14){mcx.beginPath();mcx.moveTo(a.x,a.y);mcx.lineTo(b.x,b.y);mcx.strokeStyle='rgba(124,58,237,.15)';mcx.stroke()}}
+  pts.forEach((p,i)=>{const a=miniParts[i].o;mcx.beginPath();mcx.arc(p.x,p.y,1.4,0,Math.PI*2);mcx.fillStyle='rgba(0,229,255,'+a+')';mcx.fill();});
+  requestAnimationFrame(drawMini);
+}drawMini();
+
+mode='deep';state='idle';
+// 查询状态（发送后：顶部标题变「元宝侦探正在侦探中...」（标题自带动画省略号），徽章轮换查询阶段）
+let navStateTimer=null;
+const NAV_BUSY_STEPS=['🔍 正在查询','📡 调用元宝搜索','🕸️ 全网爬取证据','🧩 交叉比对中'];
+function navBusy(on){
+  const badge=document.getElementById('navState'),title=document.getElementById('navTitle');
+  if(on){
+    badge.classList.add('busy');
+    title.innerHTML='元宝侦探正在侦探中<span class="dots"></span>';   // 标题 + 动画省略号
+    let i=0;badge.innerHTML=NAV_BUSY_STEPS[0];
+    clearInterval(navStateTimer);
+    navStateTimer=setInterval(()=>{i=(i+1)%NAV_BUSY_STEPS.length;badge.innerHTML=NAV_BUSY_STEPS[i]},2600);
+  }else{
+    clearInterval(navStateTimer);navStateTimer=null;
+    badge.classList.remove('busy');
+    badge.textContent='元宝搜索';
+    title.textContent='全息元宝侦探';
+  }
+}
+function setState(s){state=s;sp=s==='thinking'?4:s==='speaking'?2.5:1;navBusy(s==='thinking');}
+
+function showIntel(d){
+  const now=new Date().toLocaleString('zh-CN',{hour12:false});
+  const v=d.verdict||'存疑',vc=v==='真'?'vb-t':v==='假'?'vb-f':'vb-u',ve=v==='真'?'✅':v==='假'?'❌':'⚠️';
+  const sites=d.evidence?[...new Set(d.evidence.map(e=>e.site).filter(Boolean))]:[];
+  const depth=d.rounds?.length?'深度调查·'+d.rounds.length+'轮交叉':'快速查证·单轮搜索';
+  const maxS=d.total_searched||d.evidence?.length||0,authS=d.auth_sources||0;
+  const conf=Math.round(Math.min(95,Math.max(5,(authS/Math.max(maxS,1))*100+(d.consistency?30:10)+(d.rounds?.length>1?15:0))));
+  const topSites=sites.slice(0,3).join(' · ')+(sites.length>3?' +'+(sites.length-3):'');
+  document.getElementById('empty').style.display='none';
+  let h=`<div class="panel">
+    <div class="panel-hdr"><span class="panel-title">📡 元宝验证报告</span><span class="panel-time">${now}</span></div>
+    <div class="grid">
+      <div class="field"><div class="fn">⏱ 时间</div><div class="fv">${now}</div></div>
+      <div class="field"><div class="fn">🌐 来源</div><div class="fv hl">${topSites||'未知'}</div></div>
+      <div class="field"><div class="fn">🔬 验证深度</div><div class="fv hl">${depth}</div></div>
+      <div class="field"><div class="fn">📊 置信度</div><div class="fv">${conf}%</div><div class="conf-wrap"><div class="conf-bar" id="cb"></div></div></div>
+    </div>
+    <div class="verdict"><span class="vb ${vc}">${ve} ${v}</span><span class="vr">${d.reason||''}</span></div>`;
+  if(!d.evidence?.length){h+=`<div style="margin:10px 0;padding:14px;border-radius:9px;background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.25);text-align:center"><div style="font-size:1.5em">🤷</div><div style="font-weight:800;color:var(--amber);margin:6px 0;font-size:.85em">敢说不知道</div><div style="font-size:.7em;color:var(--dim)">元宝搜索未找到可靠证据，拒绝编造结论</div></div>`}
+  if(d.evidence?.length){h+=`<div class="ev"><h4>📋 证据链（${d.evidence.length}条）</h4>`;d.evidence.forEach((e,i)=>{h+=`<div class="ev-item"><a class="ev-link" href="${e.url}" target="_blank">${i+1}. ${e.title}</a><div class="ev-desc">${e.summary||''}</div><div class="ev-meta"><span>🌐 ${e.site||'?'}</span>${e.date?`<span>🕐 ${e.date}</span>`:''}</div></div>`});h+='</div>'}
+  h+='<div style="margin-top:12px;padding:9px 12px;border-radius:8px;background:rgba(0,229,255,.04);border:1px dashed rgba(0,229,255,.2);font-size:.66em;color:#7e93b8;line-height:1.6">🔍 本报告全部证据由 <b style=\"color:var(--a3)\">元宝搜索</b> 实时返回，每条可点开核对 · 查不到就明说<b style=\"color:var(--amber)\">不知道</b>，绝不编造</div>';
+  h+='</div>';
+  // 输出到侧边栏（爬完自动展开）
+  const sbrBody=document.getElementById('sbrBody');
+  sbrBody.innerHTML=h;
+  sbrBody.scrollTop=0;
+  toggleSbr(true);
+  setTimeout(()=>{const b=sbrBody.querySelector('#cb');if(b)b.style.width=conf+'%'},250);
+}
+// 侧边栏展开/收回（同步 body class：桌面端信息流/蜘蛛在剩余可视区居中）
+function toggleSbr(open){
+  const sbr=document.getElementById('sbr'),tab=document.getElementById('sbrTab');
+  if(open){sbr.classList.add('open');tab.classList.remove('show');document.body.classList.add('sbr-open')}
+  else{sbr.classList.remove('open');document.body.classList.remove('sbr-open');if(sbrBodyHasContent())tab.classList.add('show')}
+  spResize();   // 画布坐标系即时切到剩余可视区/全屏
+}
+function sbrBodyHasContent(){return document.getElementById('sbrBody').children.length>0}
+
+// ====== 麦克风：微信式按住说话 —— 按下录音 / 松开停止识别 → 后端 /api/asr 识别 → 自动填入并发送 ======
+let mr=null,ac=[];const micBtn=document.getElementById('micBtn');
+function srAutoSend(){   // 识别出文本后自动发送
+  const q=document.getElementById('query').value.trim();
+  if(q)doSearch();
+}
+function srStart(){
+  if(mr&&mr.state==='recording')return;
+  if(!navigator.mediaDevices||!window.MediaRecorder){alert('当前浏览器不支持录音');return}
+  micBtn.classList.add('recording');setState('speaking');
+  navigator.mediaDevices.getUserMedia({audio:true}).then(s=>{
+    mr=new MediaRecorder(s,{mimeType:'audio/webm'});ac=[];
+    mr.ondataavailable=e=>ac.push(e.data);
+    mr.onstop=async()=>{
+      s.getTracks().forEach(t=>t.stop());
+      micBtn.classList.remove('recording');setState('idle');
+      if(ac.length===0)return;   // 按太短没录到
+      const b=new Blob(ac,{type:'audio/webm'});
+      if(b.size<1200){return}   // <1.2KB 基本无声，跳过
+      micBtn.textContent='⏳';   // 识别中
+      try{
+        const fd=new FormData();fd.append('file',b,'r.webm');
+        const r=await fetch('/api/asr',{method:'POST',body:fd});
+        const d=await r.json();
+        micBtn.textContent='🎤';
+        const t=(d.text||'').trim();
+        if(t){document.getElementById('query').value=t;srAutoSend()}   // 识别完自动发送
+        else{micBtn.textContent='🎤'}   // 没识别到字，安静结束
+      }catch(e){micBtn.textContent='🎤';alert('语音识别失败，再试一次')}
+    };
+    mr.start();
+  }).catch(()=>{micBtn.classList.remove('recording');setState('idle');alert('麦克风权限未开启')});
+}
+function srStop(){   // 松开：停止录音 → 触发识别 → 自动发送
+  if(mr&&mr.state==='recording'){mr.stop()}
+}
+micBtn.addEventListener('mousedown',e=>{e.preventDefault();srStart()});
+micBtn.addEventListener('mouseup',e=>{e.preventDefault();srStop()});
+micBtn.addEventListener('mouseleave',e=>{e.preventDefault();if(mr&&mr.state==='recording')srStop()});   // 按住滑出也停
+micBtn.addEventListener('touchstart',e=>{e.preventDefault();srStart()},{passive:false});
+micBtn.addEventListener('touchend',e=>{e.preventDefault();srStop()},{passive:false});
+micBtn.addEventListener('touchcancel',e=>{e.preventDefault();srStop()},{passive:false});
+
+// ====== 猎场统计条（动态数字 + 关键词流） ======
+const huntBar=document.getElementById('huntBar'),hbCountEl=document.getElementById('hbCount'),hbKwEl=document.getElementById('hbKw'),hbRoundsEl=document.getElementById('hbRounds'),hbConsEl=document.getElementById('hbCons'),hbKwFlowEl=document.getElementById('hbKwFlow');
+function kwOf(e){
+  // 从证据标题里抽一个关键字（去掉常见无意义词，取前4-6字）
+  const t=(e.title||'').replace(/[，。？！、：·【】\[\]()（）"''"'\|—\-—~]/g,' ');
+  const stop=new Set(['真的','真的吗','为什么','什么','怎么','可以','没有','他们','我们','一个','这个','那个','就是','其实','如果','但是','还是','以及','这些','那些','不是','是否','真的会']);
+  const words=t.split(/\s+/).filter(w=>w.length>=2&&!stop.has(w));
+  return (words[0]||t.slice(0,6)).slice(0,8);
+}
+function bumpNum(el,val){el.textContent=val;el.classList.remove('bump');void el.offsetWidth;el.classList.add('bump');if(el.parentElement&&el.parentElement.classList)el.parentElement.classList.add('lit')}
+function huntReset(){hbCountEl.textContent='0';hbKwEl.textContent='0';hbRoundsEl.textContent='1';hbConsEl.textContent='—';hbKwFlowEl.innerHTML='<span class="kw-hint">关键词将随爬取飞入</span>'}
+function huntVisit(fromX,fromY,kw){
+  bumpNum(hbCountEl,parseInt(hbCountEl.textContent||'0')+1);
+  if(kw){
+    bumpNum(hbKwEl,parseInt(hbKwEl.textContent||'0')+1);
+    const fly=document.createElement('div');fly.className='fly-kw';fly.textContent=kw;
+    fly.style.left=fromX+'px';fly.style.top=fromY+'px';document.body.appendChild(fly);
+    const chip=document.createElement('span');chip.className='hb-kw';chip.textContent=kw;
+    const hint=hbKwFlowEl.querySelector('.kw-hint');if(hint)hint.remove();
+    hbKwFlowEl.appendChild(chip);
+    while(hbKwFlowEl.children.length>14)hbKwFlowEl.removeChild(hbKwFlowEl.firstChild);
+    requestAnimationFrame(()=>{requestAnimationFrame(()=>{
+      const r=chip.getBoundingClientRect();
+      fly.style.left=(r.left+r.width/2)+'px';fly.style.top=(r.top+r.height/2)+'px';fly.style.fontSize='.3em';
+    })});
+    setTimeout(()=>{fly.style.opacity='0'},650);
+    setTimeout(()=>fly.remove(),800);
+  }
+}
+function huntRound(n){bumpNum(hbRoundsEl,n)}
+function huntConsistency(ok){hbConsEl.textContent=ok?'一致':'分歧';bumpNum(hbConsEl,ok?'一致':'分歧')}
+
+// ====== 数码蜘蛛爬行可视化（真实抓取调度过程可视化） ======
+const SPC=document.getElementById('spiderCvs'),SPX=SPC.getContext('2d');
+const spLayer=document.getElementById('spider-layer');
+const feedRowsEl=document.getElementById('feedRows'),feedCountEl=document.getElementById('feedCount'),feedTotalEl=document.getElementById('feedTotal');
+let spRun=false;
+function spiderSz(){
+  // 按屏宽连续比例缩放：桌面基准 3.0；手机随宽度缩小（390 宽 ≈ 2.3，占屏比例与桌面一致）
+  const w=Math.min(window.innerWidth,window.innerHeight);
+  const base=w<640?3.0*(0.55+0.45*w/640):3.0;
+  return base;
+}
+function spResize(){
+  // 可视区宽：桌面端报告抽屉打开时右缩 420px（与 CSS body.sbr-open #spiderCvs{right:420px} 对齐）
+  const vw=(window.innerWidth>640&&document.body.classList.contains('sbr-open'))?window.innerWidth-420:window.innerWidth;
+  const h=window.innerHeight;
+  SPC.width=vw;SPC.height=h;          // 逻辑像素坐标系（CSS 100% 拉伸自适应）
+  SPC.style.width=vw+'px';SPC.style.height=h+'px';
+}
+spResize();
+window.addEventListener('resize',spResize);
+window.addEventListener('orientationchange',()=>setTimeout(spResize,300));   // 手机转屏
+
+function relColor(score){return score>=.7?[34,211,238]:score>=.4?[251,146,60]:[239,68,68]}
+
+// 粒子赛博蜘蛛 v2：真蜘蛛比例 —— 身子小、腿细长（腿长≈身长3~4倍）、膝高抬、对角步态
+function drawCyberSpider(x,y,ang,size,walkPhase,touchPhase){
+  SPX.save();SPX.translate(x,y);SPX.rotate(ang);
+  const s=size;
+  // ---- 8 条细长腿：左右各4，前腿朝前、后腿朝后，膝盖高抬，对角交替迈步 ----
+  for(let i=0;i<8;i++){
+    const side=i<4?-1:1;                  // 左侧(-1)/右侧(+1)
+    const rank=i%4;                       // 0前 → 3后
+    const ph=walkPhase*1.8+(i%2)*Math.PI; // 对角步态：相邻腿反相迈步
+    const swing=Math.sin(ph);             // -1..1 迈步摆动
+    const rootX=(2.2-rank*1.75)*s;        // 腿根沿身体分布
+    const dirF=.8-rank*.52;               // 前腿探前、后腿蹬后
+    const L=(12.5+(swing+1)*3.4)*s;       // 腿长 12.5~19.3s（细长、大幅迈步）
+    const footX=rootX+dirF*L+swing*1.9*s;         // 脚落点前后扫动
+    const footY=side*(6.6+(swing+1)*1.05)*s;      // 迈步时张开、收腿时贴身
+    const kneeX=(rootX+footX)*.5+dirF*1.6*s;      // 膝在中点偏前
+    const kneeY=side*(8.2+(swing+1)*1.7)*s;       // 膝比脚更外（高抬弓起）
+    // 大腿（根→膝，粗）+ 小腿（膝→脚，细）两段折线
+    SPX.strokeStyle=`rgba(0,229,255,${.5+.2*Math.sin(ph*.5+i)})`;
+    SPX.lineCap='round';
+    SPX.lineWidth=1.05*s;
+    SPX.beginPath();SPX.moveTo(rootX,side*2.1*s);SPX.lineTo(kneeX,kneeY);SPX.stroke();
+    SPX.lineWidth=.62*s;
+    SPX.beginPath();SPX.moveTo(kneeX,kneeY);SPX.lineTo(footX,footY);SPX.stroke();
+    // 膝关节亮点
+    SPX.fillStyle='rgba(196,244,255,.85)';
+    SPX.beginPath();SPX.arc(kneeX,kneeY,.95*s,0,Math.PI*2);SPX.fill();
+    // 脚尖探测光点
+    const tw=.5+.5*Math.sin(touchPhase*2.6+i*1.7);
+    SPX.fillStyle=`rgba(196,244,255,${tw})`;
+    SPX.beginPath();SPX.arc(footX,footY,1.15*s,0,Math.PI*2);SPX.fill();
+    SPX.fillStyle=`rgba(0,229,255,${tw*.28})`;
+    SPX.beginPath();SPX.arc(footX,footY,3*s,0,Math.PI*2);SPX.fill();
+  }
+  // ---- 身子（小）：前头胸 + 后腹部，呼吸起伏 ----
+  const breathe=1+Math.sin(walkPhase*2.2)*.07;
+  // 腹部（后节）
+  SPX.fillStyle='rgba(0,229,255,.14)';
+  SPX.beginPath();SPX.ellipse(-2.4*s,0,4.1*s*breathe,3.1*s*breathe,0,0,Math.PI*2);SPX.fill();
+  SPX.strokeStyle='rgba(0,229,255,.5)';SPX.lineWidth=.5*s;SPX.stroke();
+  for(let i=0;i<9;i++){
+    const t=i/9*Math.PI*2+walkPhase*.4;
+    SPX.fillStyle='rgba(0,229,255,.5)';
+    SPX.beginPath();SPX.arc(-2.4*s+Math.cos(t)*2.5*s,Math.sin(t)*1.9*s,.55*s,0,Math.PI*2);SPX.fill();
+  }
+  // 头胸（前节，小）
+  SPX.fillStyle='rgba(140,230,255,.18)';
+  SPX.beginPath();SPX.ellipse(2.3*s,0,2.3*s*breathe,1.8*s*breathe,0,0,Math.PI*2);SPX.fill();
+  SPX.strokeStyle='rgba(140,230,255,.55)';SPX.lineWidth=.45*s;SPX.stroke();
+  // 核心辉光
+  const g=SPX.createRadialGradient(0,0,1,0,0,6.5*s);
+  g.addColorStop(0,'rgba(190,240,255,.5)');g.addColorStop(.6,'rgba(0,229,255,.16)');g.addColorStop(1,'rgba(0,229,255,0)');
+  SPX.fillStyle=g;SPX.beginPath();SPX.arc(0,0,6.5*s,0,Math.PI*2);SPX.fill();
+  // 双主眼（头前侧）
+  [-1,1].forEach(sd=>{
+    SPX.fillStyle='#eafcff';
+    SPX.beginPath();SPX.arc(3.9*s,sd*1*s,.85*s,0,Math.PI*2);SPX.fill();
+  });
+  SPX.restore();
+}
+
+// 终端推一行日志 → 已升级为全屏信息流（见 animateSpider）
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+// ====== 信息流滚动引擎（行从底部浮入，整体匀速上移，头部淡出） ======
+const feedEngine={rows:[],topY:0,running:false,ROW_H:30,AREA_TOP:110,AREA_BOT:0};
+// 滚动带：入场=屏高 1/3 处（底部往上），淡出=统计条下方安全线
+function feedBand(){const vh=window.innerHeight;feedEngine.AREA_BOT=Math.round(vh*0.80);feedEngine.AREA_TOP=Math.round(vh*0.35)}
+function feedStart(){feedEngine.rows=[];feedBand();feedEngine.topY=feedEngine.AREA_BOT;feedEngine.running=true}
+window.addEventListener('resize',feedBand)
+function feedTick(dy){
+  if(!feedEngine.running)return;
+  // 持流保护：蜘蛛当前目标行快到带顶时暂停滚动，等抓到再放行；目标行永不淡出
+  const hold=feedEngine.hold;
+  if(hold&&dy>0){
+    const hr=feedEngine.rows.find(r=>r.div===hold);
+    if(hr&&hr.y<=feedEngine.AREA_TOP+feedEngine.ROW_H)dy=0;
+  }
+  feedEngine.topY-=dy;
+  const H=window.innerHeight;
+  feedEngine.rows.forEach(r=>{
+    if(!r.div.isConnected)return;
+    r.y-=dy;
+    r.div.style.top=r.y+'px';
+    if(r.y<feedEngine.AREA_TOP-10&&r.div!==feedEngine.hold){r.div.style.opacity='0';r.dead=true}
+  });
+  feedEngine.rows=feedEngine.rows.filter(r=>!r.dead&&r.div.isConnected);
+}
+function feedAdd(o){
+  const div=document.createElement('div');
+  if(o.scan){div.className='frow scan';div.textContent=o.text}
+  else{
+    div.className='frow';
+    const rc=relColor(o.score??.5);const hex=`rgb(${rc[0]},${rc[1]},${rc[2]})`;
+    div.innerHTML=`<span class="fs" style="color:${hex}">${esc((o.site||'?').slice(0,18))}</span><span class="kw">${esc(o.kw)}</span> ${esc((o.title||'').slice(0,30))}`;
+  }
+  const y=feedEngine.topY;
+  div.style.top=y+'px';div.classList.add('in');
+  feedRowsEl.appendChild(div);
+  feedEngine.topY+=feedEngine.ROW_H;
+  while(feedRowsEl.children.length>60)feedRowsEl.removeChild(feedRowsEl.firstChild);
+  const rec={div,y,dead:false,lit:false};
+  feedEngine.rows.push(rec);
+  return rec;
+}
+
+// ====== 预加载：打开页面/聚焦输入框 → 蜘蛛先绘到屏上待命（点发送直接开爬） ======
+let preloadRAF=null,preloadRun=false,prePhase=0;
+function startPreload(){
+  if(preloadRun||spRun||warmRun)return;preloadRun=true;
+  spLayer.classList.add('on');spResize();
+  SPX.clearRect(0,0,SPC.width,SPC.height);
+  preLoop();
+}
+function preLoop(){
+  if(!preloadRun)return;
+  if(!SPC.width||!SPC.height)spResize();
+  prePhase+=.13;
+  SPX.clearRect(0,0,SPC.width,SPC.height);
+  const W=SPC.width,H=window.innerHeight;   // 画布宽=可视区（报告打开时右缩）
+  // 待命位置：视觉中心偏下一点，避开顶部统计条；键盘弹出时随 visualViewport 上移
+  let baseY=H*.58;
+  if(window.visualViewport)baseY=Math.min(H*.58,window.visualViewport.height*.6+window.visualViewport.offsetTop);
+  const wx=W/2+Math.sin(prePhase*.5)*46;
+  const wy=baseY+Math.cos(prePhase*.8)*22;
+  const wx2=W/2+Math.sin(prePhase*.5+.4)*46;
+  const wy2=baseY+Math.cos(prePhase*.8+.4)*22;
+  const ang=Math.atan2(wy2-wy,wx2-wx);
+  drawCyberSpider(wx,wy,ang,spiderSz()*1.2,prePhase,prePhase);
+  preloadRAF=requestAnimationFrame(preLoop);
+}
+function stopPreload(){
+  preloadRun=false;
+  if(preloadRAF){cancelAnimationFrame(preloadRAF);preloadRAF=null}
+  if(!spRun&&!warmRun)SPX.clearRect(0,0,SPC.width,SPC.height);
+}
+const queryTa=document.getElementById('query');
+queryTa.addEventListener('focus',startPreload);
+// blur 不立刻收：等 2.2s，期间重新聚焦/开始搜索则保留（防键盘弹出诱发的一次性失焦收回）
+let blurHoldTimer=null;
+queryTa.addEventListener('blur',()=>{
+  clearTimeout(blurHoldTimer);
+  blurHoldTimer=setTimeout(()=>{
+    if(document.activeElement!==queryTa&&!spRun&&!warmRun){stopPreload();spLayer.classList.remove('on')}
+  },2200);
+});
+queryTa.addEventListener('focus',()=>clearTimeout(blurHoldTimer));
+// 页面打开 2.5s 后蜘蛛直接趴屏待命（真·预加载，用户点发送前就看得见）
+setTimeout(()=>{if(!spRun&&!warmRun)startPreload()},2500);
+
+// 思考期预热：发送瞬间启动——粒子汇聚成蜘蛛弹出 + 扫描行滚动 + 蜘蛛巡游
+let warmTimer=null,warmRun=false,warmRAF=null,walkPhaseW=0;
+function startWarmFeed(){
+  if(warmRun)return;warmRun=true;
+  stopPreload();   // 预加载待命 → 接管
+  spLayer.classList.add('on');spResize();
+  huntBar.style.display='flex';huntReset();
+  feedCountEl.textContent='0';feedTotalEl.textContent='—';
+  feedStart();
+  // 粒子汇聚成蜘蛛（点发送那一瞬间）
+  spawnBurst();
+  // 思考期渲染循环：扫描行滚动 + 蜘蛛在屏中巡游
+  warmLoop();
+  warmTimer=setInterval(()=>{
+    if(!warmRun)return;
+    const q=(document.getElementById('query').value||'传言').slice(0,8);
+    feedAdd({scan:true,text:`扫描全网 · ${q} · 通道${1+Math.floor(Math.random()*3)} · ${Math.random().toFixed(3)}s`});
+  },340);
+}
+function warmLoop(){
+  if(!warmRun)return;
+  if(!SPC.width||!SPC.height)spResize();
+  walkPhaseW+=.11;   // 巡游放慢
+  feedTick(.8);   // 思考期流滚稍快
+  SPX.clearRect(0,0,SPC.width,SPC.height);
+  const W=SPC.width,H=window.innerHeight;   // 画布宽=可视区（报告打开时右缩）
+  // 蜘蛛李萨如巡游：以滚动带中心为轴小幅踱步（居中带内，不忽上忽下）
+  const bandMidY=H*.57;
+  const wx=W/2+Math.sin(walkPhaseW*.6)*110;
+  const wy=bandMidY+Math.cos(walkPhaseW*.85)*40;
+  const wx2=W/2+Math.sin(walkPhaseW*.6+.35)*110;
+  const wy2=bandMidY+Math.cos(walkPhaseW*.85+.35)*40;
+  const ang=Math.atan2(wy2-wy,wx2-wx);
+  drawCyberSpider(wx,wy,ang,spiderSz()*1.65,walkPhaseW,walkPhaseW);
+  warmRAF=requestAnimationFrame(warmLoop);
+}
+function stopWarmFeed(){warmRun=false;if(warmTimer){clearInterval(warmTimer);warmTimer=null}if(warmRAF){cancelAnimationFrame(warmRAF);warmRAF=null}}
+
+// 信息流行
+function addFeedRow(o){return feedAdd(o)}
+
+// 蜘蛛出生动画：30 颗粒子飞向发送箭头处汇成一点，然后蜘蛛从箭头钻出往上爬
+let spiderBirth=0;  // 0=无 1=汇聚中 2=已出生
+function spawnBurst(){
+  spiderBirth=1;
+  // 出生点=发送箭头位置（点哪从哪出，视觉逻辑顺）
+  const sb=document.getElementById('sendBtn');
+  const br=sb?sb.getBoundingClientRect():null;
+  const cx=br?br.left+br.width/2:SPC.width/2;
+  const cy=br?Math.max(window.innerHeight*.38,br.top-10):window.innerHeight*.44;
+  for(let i=0;i<30;i++){
+    const p=document.createElement('div');
+    p.style.cssText='position:fixed;z-index:79;pointer-events:none;width:'+(2+Math.random()*3)+'px;height:'+(2+Math.random()*3)+'px;border-radius:50%;background:rgba(0,229,255,.85);box-shadow:0 0 8px rgba(0,229,255,.6);left:'+(Math.random()*SPC.width)+'px;top:'+(Math.random()*window.innerHeight)+'px;transition:all '+(0.8+Math.random()*0.6)+'s cubic-bezier(.5,0,.3,1)';
+    document.body.appendChild(p);
+    requestAnimationFrame(()=>{requestAnimationFrame(()=>{
+      p.style.left=cx+'px';p.style.top=cy+'px';p.style.transform='scale(.2)';p.style.opacity='0';
+    })});
+    setTimeout(()=>p.remove(),1700);
+  }
+  // 出生波纹
+  setTimeout(()=>{
+    const ring=document.createElement('div');
+    ring.style.cssText='position:fixed;z-index:79;pointer-events:none;left:'+cx+'px;top:'+cy+'px;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;border:2px solid rgba(0,229,255,.7);box-shadow:0 0 18px rgba(0,229,255,.5);transition:all 1s ease-out';
+    document.body.appendChild(ring);
+    requestAnimationFrame(()=>{requestAnimationFrame(()=>{ring.style.width='140px';ring.style.height='140px';ring.style.margin='-70px 0 0 -70px';ring.style.opacity='0'})});
+    setTimeout(()=>ring.remove(),1200);
+  },700);
+}
+
+function animateSpider(d,onDone){
+  const ev=d.evidence||[];   // 后端返回多少爬多少（动态条数 8~18）
+  // 防旧报告提前弹出：清掉上一次查询遗留的「爬完弹卡」定时器（快速连发时旧报告不会盖到新动画上）
+  if(spFinishTimer){clearTimeout(spFinishTimer);spFinishTimer=null}
+  if(!ev.length){onDone();return}
+  // 思考期预热停掉，切换到真实数据驱动
+  stopWarmFeed();
+  // 重置信息流：清空扫描行，从屏中开始铺开真实证据（保证行落在可视区）
+  feedRowsEl.innerHTML='';feedEngine.rows=[];
+  feedStart();
+  feedEngine.topY=feedEngine.AREA_BOT-Math.min(6,ev.length)*feedEngine.ROW_H;   // 最后几行先铺在滚动带内
+  spRun=true;spLayer.classList.add('on');spResize();
+  // 猎场统计条
+  huntBar.style.display='flex';huntReset();
+  feedCountEl.textContent='0';feedTotalEl.textContent=ev.length;
+  // 交叉轮次随爬取进度动态涨：每爬完约 1/3 涨一轮（模拟多轮爬取交叉验证的过程感）
+  const totalRounds=Math.max(1,d.rounds?.length||1);
+  const roundStep=Math.max(1,Math.ceil(ev.length/Math.min(totalRounds,3)));
+  const W=SPC.width,H=SPC.height;
+  const cx=W/2;
+  // 滚动带上下界（蜘蛛和信息流都只在这条居中带内活动，不忽上忽下）
+  const bandTop=H*0.38,bandBot=H*0.76;
+  const clampY=y=>Math.max(bandTop,Math.min(bandBot,y));
+  // 蜘蛛出发位置：从发送箭头（输入区右下）钻出来往上爬
+  const sendBtnR=(document.getElementById('sendBtn')||{}.getBoundingClientRect?document.getElementById('sendBtn').getBoundingClientRect():null);
+  let spPx=sendBtnR?sendBtnR.left+sendBtnR.width/2:cx;
+  let spPy=sendBtnR?clampY(sendBtnR.top-10):H*.76;
+  let spAng=-Math.PI/2,walkPhase=0,touchPhase=0;
+  let cur=0,seg=0,segTotal=0;   // cur=当前拾取进度（追行模式）
+  const trail=[];
+  let finishTimer=null,waitFrames=0;
+  // 真实证据行插入信息流（每行一个追踪对象）
+  const targets=[];
+  ev.forEach((e,i)=>{targets.push({e,row:feedAdd({site:e.site,kw:kwOf(e),title:e.title,score:e.score}),lit:false})});
+
+  // 行实际位置 → 蜘蛛导航目标（Y 钳制在滚动带内：蜘蛛永远只在居中带爬，不追到屏幕顶/底）
+  function rowCenter(i){
+    const r=targets[i]&&targets[i].row?targets[i].row.div:null;
+    if(!r||!r.isConnected)return{x:cx,y:clampY(H*.55)};
+    const b=r.getBoundingClientRect();
+    return{x:b.left+b.width/2,y:clampY(b.top+b.height/2)};
+  }
+
+  function step(){
+    if(!spRun)return;
+    // 画布自愈：手机浏览器内存回收/转屏后画布可能失效，立即重建再画（报告抽屉开关也会改可视区宽）
+    const wantW=(window.innerWidth>640&&document.body.classList.contains('sbr-open'))?window.innerWidth-420:window.innerWidth;
+    if(!SPC.width||!SPC.height||SPC.width!==wantW||SPC.height!==window.innerHeight)spResize();
+    feedEngine.hold=(targets[cur]&&targets[cur].row)?targets[cur].row.div:null;   // 持流：当前目标
+    walkPhase+=.11;touchPhase+=.04;   // 蜘蛛动作慢：迈步节奏放缓（腿摆慢）——但爬取进度速度不变
+    feedTick(.35);   // 爬取期信息流恢复原速（爬取速度与之前一致）
+    SPX.clearRect(0,0,SPC.width,SPC.height);
+    // 蜘蛛爬向当前目标行
+    if(cur<ev.length){
+      const tgt=rowCenter(cur);
+      const tx=tgt.x+(Math.sin(cur*2.7)*60),ty=clampY(tgt.y);   // 目标 Y 也压在带内
+      if(segTotal===0){segTotal=14+Math.floor(Math.random()*10);seg=0;waitFrames=0;trail.length=0}
+      seg+=1.35;waitFrames++;
+      // 逼近目标行（速度不低于流上滚速度，保证追得上）
+      const dx=tx-spPx,dy=ty-spPy;
+      const sp=Math.max(3.2,.055*Math.hypot(dx,dy));   // 爬行提速：抓关键字节奏更快
+      if(Math.hypot(dx,dy)>sp){spPx+=dx/Math.hypot(dx,dy)*sp;spPy+=dy/Math.hypot(dx,dy)*sp}
+      else{spPx=tx;spPy=ty}
+      spPy=clampY(spPy);   // 蜘蛛本体每帧钳制回居中带（永不爬出屏顶/屏底）
+      spPx=Math.max(30,Math.min(SPC.width-30,spPx));   // 横向也别出屏
+      spAng=Math.atan2(dy,dx);
+      if(seg%2===0){trail.push({x:spPx,y:spPy});if(trail.length>12)trail.shift()}
+      const arrived=Math.hypot(dx,dy)<26||waitFrames>150;  // 到位半径放宽 26px：省掉蹭到 10px 的磨蹭帧
+      if(arrived){
+        // 触角探到关键字 → 该行高亮
+        targets[cur].row.div.classList.add('lit');
+        targets[cur].row.div.style.opacity='';   // 清 inline，让 .lit 的 opacity:1 生效
+        targets[cur].lit=true;
+        const b=targets[cur].row.div.getBoundingClientRect();
+        huntVisit(b.left+b.width/2,b.top+b.height/2,kwOf(targets[cur].e));
+        cur++;
+        // 按进度推进交叉轮次：爬完 1/3 → 第2轮，爬完 2/3 → 第3轮
+        const nowRound=Math.min(totalRounds,1+Math.floor(cur/roundStep));
+        if(nowRound>parseInt(hbRoundsEl.textContent||'1'))huntRound(nowRound);
+        hbCountEl.textContent=cur;feedCountEl.textContent=cur;
+        segTotal=0;
+        if(cur>=ev.length){
+          // 全部爬完：写一致性 → 蜘蛛回巢粒子化消散
+          huntConsistency(!!d.consistency);
+          if(finishTimer){clearTimeout(finishTimer)}
+          spFinishTimer=finishTimer=setTimeout(()=>{spFinishTimer=null;dissolveSpider(spPx,spPy);stopSpider();onDone()},1100);
+          requestAnimationFrame(step);return;
+        }
+      }
+    }
+    // 拖尾
+    if(trail.length>1){for(let i=0;i<trail.length-1;i++){const a=i/trail.length;SPX.beginPath();SPX.moveTo(trail[i].x,trail[i].y);SPX.lineTo(trail[i+1].x,trail[i+1].y);SPX.strokeStyle=`rgba(0,229,255,${a*.35})`;SPX.lineWidth=1.2;SPX.stroke()}}
+    drawCyberSpider(spPx,spPy,spAng,spiderSz()*1.65,walkPhase,touchPhase);   // 爬取态与激活态同大小（主人确认激活态合适）
+    requestAnimationFrame(step);
+  }
+  step();
+}
+
+// 蜘蛛粒子化消散（爬完回巢，散成粒子飞散）
+function dissolveSpider(x,y){
+  for(let i=0;i<40;i++){
+    const fly=document.createElement('div');
+    fly.style.cssText='position:fixed;z-index:80;pointer-events:none;width:3px;height:3px;border-radius:50%;background:rgba(0,229,255,.8);box-shadow:0 0 6px rgba(0,229,255,.6);left:'+x+'px;top:'+y+'px;transition:all '+(0.6+Math.random()*0.7)+'s ease-out';
+    document.body.appendChild(fly);
+    const ang=Math.random()*Math.PI*2,dist=60+Math.random()*160;
+    requestAnimationFrame(()=>{requestAnimationFrame(()=>{
+      fly.style.left=(x+Math.cos(ang)*dist)+'px';
+      fly.style.top=(y+Math.sin(ang)*dist-40)+'px';
+      fly.style.opacity='0';
+    })});
+    setTimeout(()=>fly.remove(),1500);
+  }
+}
+let spFinishTimer=null;   // 「爬完→弹报告」全局定时器（新一轮查询开跑前先清，防旧报告提前弹出）
+function stopSpider(){spRun=false;warmRun=false;spLayer.classList.remove('on');if(spFinishTimer){clearTimeout(spFinishTimer);spFinishTimer=null}}   // huntBar 保留：统计不消失
+
+// ====== 预设问题卡片（便于增删改：直接编辑数组即可） ======
+const PRESET_QUESTIONS=[
+  {icon:'🦈',text:'鲨鱼真的不会得癌症吗'},
+  {icon:'🛸',text:'有人真的被外星人绑架过吗'},
+  {icon:'🌍',text:'地球真的会爆炸吗'},
+  {icon:'🤖',text:'AI 真的会统治人类吗'},
+  {icon:'🧠',text:'人类真的只用了10%的大脑吗'},
+  {icon:'🐠',text:'金鱼真的只有7秒记忆吗'},
+  {icon:'🐙',text:'章鱼真的有三个心脏'},
+  {icon:'⚡',text:'闪电不会劈中同一个地方两次？'},
+  {icon:'🐸',text:'温水真的能煮死青蛙吗'},
+  {icon:'📏',text:'拿破仑真的很矮吗'},
+];
+(function initQs(){
+  const box=document.getElementById('qs');
+  PRESET_QUESTIONS.forEach(q=>{
+    const b=document.createElement('button');
+    b.className='q-card';b.type='button';
+    b.innerHTML=`<span class="qi">${q.icon}</span>${q.text}`;
+    b.onclick=()=>{
+      document.querySelectorAll('.q-card').forEach(c=>c.classList.remove('picked'));
+      b.classList.add('picked');
+      const inp=document.getElementById('query');
+      inp.value=q.text;inp.focus();
+      startPreload();   // 点卡片即预加载蜘蛛
+    };
+    box.appendChild(b);
+  });
+})();
+
+async function doSearch(){const q=document.getElementById('query').value.trim();if(!q){alert('请输入');return}if(document.body.classList.contains('sbr-open'))toggleSbr(false);   // 新一轮查询：先收起旧报告，爬取区回到全屏居中
+// 查询开始：立即收起「试试问」卡片区 + 空态占位（防止卡片堆在爬取画面里像"提前弹出的答案卡"）
+const qsBox=document.getElementById('qs'),emptyBox=document.getElementById('empty');
+if(qsBox)qsBox.style.display='none';
+if(emptyBox)emptyBox.style.display='none';
+setState('thinking');const btn=document.getElementById('sendBtn');btn.style.opacity=.5;startWarmFeed();try{const api='/api/check'+location.search;const r=await fetch(api,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:q,mode})});const d=await r.json();setState('idle');animateSpider(d,()=>{showIntel(d)});}catch(e){setState('idle');stopSpider();alert('网络错误')}btn.style.opacity=1}
+document.getElementById('sendBtn').addEventListener('click',doSearch);
+document.getElementById('query').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();doSearch()}});
+</script>
+</body>
+</html>
